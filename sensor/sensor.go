@@ -2,9 +2,11 @@ package sensor
 
 import (
 	"encoding/binary"
-	"github.com/karalabe/hid"
 	"log"
+	"sync"
 	"time"
+
+	"github.com/karalabe/hid"
 )
 
 type Sensor struct {
@@ -14,14 +16,18 @@ type Sensor struct {
 	Absent      bool
 }
 
+var usbLock sync.Mutex
+
 // CheckDeviceWithoutQuery tests whether the given device can be opened without reading sensor data
 func CheckDeviceWithoutQuery(deviceInfo []hid.DeviceInfo) bool {
 	valid := true
+	usbLock.Lock()
 	device, err := deviceInfo[0].Open()
 	if err != nil {
 		valid = false
 	}
 	closeDevice(device)
+	usbLock.Unlock()
 	return valid
 }
 
@@ -45,11 +51,13 @@ func QueryAndPrintOnce(deviceInfo []hid.DeviceInfo) {
 func QueryDeviceSensors(deviceInfo []hid.DeviceInfo) ([]*Sensor, error) {
 	log.Printf("Opening device %v...\n", deviceInfo)
 
+	usbLock.Lock()
 	device, err := deviceInfo[0].Open()
 	if err != nil {
 		log.Printf("Opening device failed: %v\n", err)
 		return nil, err
 	}
+	defer usbLock.Unlock()
 	defer closeDevice(device)
 
 	requestBytes := getTempRequestBytes()
